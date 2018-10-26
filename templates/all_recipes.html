@@ -1,0 +1,12 @@
+
+
+{% block content1 %}
+
+<h1>All Recipe Results From Past Searches</h1>
+
+{% for r in recipes %}
+    <p>{{ r.recipe }}</p>
+{% endfor %}
+
+
+{% endblock %}
