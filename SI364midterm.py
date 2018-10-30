@@ -7,10 +7,12 @@
 import os
 from flask import Flask, render_template, session, redirect, url_for, flash, request
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, ValidationError# Note that you may need to import more here! Check out examples that do what you want to figure out what.
+from wtforms import StringField, SubmitField, ValidationError # Note that you may need to import more here! Check out examples that do what you want to figure out what.
 from wtforms.validators import Required # Here, too
 from flask_sqlalchemy import SQLAlchemy
 from flask_script import Manager, Shell
+import requests
+import json
 
 ## App setup code
 app = Flask(__name__)
@@ -31,7 +33,28 @@ db = SQLAlchemy(app)
 ######## HELPER FXNS (If any) ########
 ######################################
 
-
+def get_or_create_recipes(ingred):
+    baseurl = "https://api.edamam.com/search"
+    params = {}
+    params["q"] = ingred.ingred
+    params["app_id"] = 'e4e80ba4'
+    params["app_key"] = '648e3b6268fc14c9889a4013d4aaff9b'
+    resp = requests.get(baseurl,params=params)
+    
+    hits = json.loads(resp.text)['hits']
+    recipes = []
+    for item in hits:
+    	title = item['recipe']['label']
+    	recipe_url = item['recipe']['url']
+    	health = 'No health label'
+    	if item['recipe']['healthLabels']:
+    		health = item['recipe']['healthLabels'][0]
+    	recipe = Recipe(title=title,recipe_url=recipe_url, health=health, ingred_id=ingred.id)
+    	print (str(recipe.health))
+    	recipes.append(recipe)
+    	db.session.add(recipe)
+    db.session.commit()
+    return recipes
 
 ##################
 ##### MODELS #####
@@ -41,8 +64,7 @@ class Recipe(db.Model):
 	__tablename__ = "recipes"
 	id = db.Column(db.Integer,primary_key=True)
 	title = db.Column(db.String())
-	#recipe_url = db.Column(db.String())
-	#image_url = db.Column(db.String())
+	recipe_url = db.Column(db.String())
 	health = db.Column(db.String())
 	ingred_id = db.Column(db.Integer, db.ForeignKey('ingredients.id'))
 
@@ -82,27 +104,42 @@ class IngredForm(FlaskForm):
 ## Error handling routes
 @app.errorhandler(404)
 def page_not_found(e):
+	form = IngredForm()
+
 	return render_template('404.html'), 404
 
 
 @app.errorhandler(500)
 def internal_server_error(e):
+	form = IngredForm()
+
 	return render_template('500.html'), 500
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def home():
-	form = IngredForm() # User should be able to enter name after name and each one will be saved, even if it's a duplicate! Sends data with GET
-	ingred_objects = Ingredient.query.all()
+	form = IngredForm()
+
+	return render_template('base.html',form=form)
+
+@app.route('/recipe_results', methods=['POST'])
+def recipe_results():
+	form = IngredForm()
+	#recipes = Recipe.query.all()
 
 	if form.validate_on_submit():
-	
+
+		ingred_objects = Ingredient.query.all()
+
 	## Find out if ingred is duplicate
 		ingred = form.ingred.data
 		
 		ingred_check = Ingredient.query.filter_by(ingred=ingred).first() #if something is returned, ingred is True, returns None if there isn't anything in the database
+
 		if ingred_check:
-			return redirect(url_for('all_recipes'))
+			flash("This ingredient has already been searched for.")
+			
+			return redirect(url_for('home'))
 
 	## Get the data from the form
 	## If this isn't a duplicate, add it
@@ -110,18 +147,24 @@ def home():
 			db_ingred = Ingredient(ingred=ingred)
 			db.session.add(db_ingred)
 			db.session.commit()
-			return redirect(url_for('all_recipes'))
-	return render_template('base.html',form=form)
+
+			recipes = get_or_create_recipes(ingred=db_ingred)
+	
+		return render_template('recipe_results.html',ingred=ingred,recipes=recipes, form=form)			
 
 @app.route('/all_recipes')
 def all_recipes():
+	form = IngredForm()
+
 	recipes = Recipe.query.all()
-	return render_template('all_recipes.html',recipes=recipes)
+	return render_template('all_recipes.html',recipes=recipes, form=form)
 
 @app.route('/all_ingred')
 def all_ingred():
+	form = IngredForm()
+
 	ingred = Ingredient.query.all()
-	return render_template('all_ingred.html', ingred=ingred)
+	return render_template('all_ingred.html', ingred=ingred, form=form)
 
 ## Code to run the application...
 
