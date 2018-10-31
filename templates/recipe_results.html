@@ -1,13 +1,22 @@
 {% extends 'base.html' %}
 
 {% block content1 %}
+{{ form.hidden_tag() }}
+  	{% for message in get_flashed_messages() %} 
+ 	{% for key in message %}
+  		{{message[key][0]}}
+  	{% endfor %}
+  	{% endfor %}
+
+{% if recipes%}
 
 <h1>Recipe Results For: {{ ingred }}</h1>
 	<p>
     {% for r in recipes %}
-	    {{ r.title }}    
+	    {{ r.title }}  <br>  
 	{% endfor %}
     </p>
+{% endif %}
 
 {% endblock %}
 

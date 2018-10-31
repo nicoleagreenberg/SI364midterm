@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content1 %}
+
+<h1>Recipe Results For: {{ health_label }}</h1>
+	<p>
+    {% for r in health_results %}
+	    {{ r.title }}    
+	{% endfor %}
+    </p>
+
+{% endblock %}

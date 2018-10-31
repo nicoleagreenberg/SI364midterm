@@ -7,7 +7,7 @@
 import os
 from flask import Flask, render_template, session, redirect, url_for, flash, request
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, ValidationError # Note that you may need to import more here! Check out examples that do what you want to figure out what.
+from wtforms import StringField, SubmitField, ValidationError, RadioField # Note that you may need to import more here! Check out examples that do what you want to figure out what.
 from wtforms.validators import Required # Here, too
 from flask_sqlalchemy import SQLAlchemy
 from flask_script import Manager, Shell
@@ -48,9 +48,8 @@ def get_or_create_recipes(ingred):
     	recipe_url = item['recipe']['url']
     	health = 'No health label'
     	if item['recipe']['healthLabels']:
-    		health = item['recipe']['healthLabels'][0]
+    		health = item['recipe']['healthLabels'][0].lower()
     	recipe = Recipe(title=title,recipe_url=recipe_url, health=health, ingred_id=ingred.id)
-    	print (str(recipe.health))
     	recipes.append(recipe)
     	db.session.add(recipe)
     db.session.commit()
@@ -96,6 +95,9 @@ class IngredForm(FlaskForm):
 		if len(display_name_input)>1:
 			raise ValidationError("Your display name can only be one word.")
 
+class HealthForm(FlaskForm):
+	health = RadioField('Select one dietary restriction to find recipes that fit your diet.', choices=[('dairy-free','Dairy Free'),('high-protein','High Protein'),('low-carb','Low Carb'), ('low-fat','Low Fat'), ('gluten-free','Gluten Free'), ('alcohol-free', 'Alcohol Free'), ('vegan', 'Vegan'), ('sugar-conscious', "Sugar Conscious")], validators=[Required()])
+	submit = SubmitField("Search for recipes")
 
 #######################
 ###### VIEW FXNS ######
@@ -120,25 +122,25 @@ def internal_server_error(e):
 def home():
 	form = IngredForm()
 
-	return render_template('base.html',form=form)
+	return render_template('form.html',form=form)
 
 @app.route('/recipe_results', methods=['POST'])
 def recipe_results():
 	form = IngredForm()
-	#recipes = Recipe.query.all()
+	ingred = form.ingred.data
+	recipes = []
 
 	if form.validate_on_submit():
 
 		ingred_objects = Ingredient.query.all()
 
 	## Find out if ingred is duplicate
-		ingred = form.ingred.data
+		
 		
 		ingred_check = Ingredient.query.filter_by(ingred=ingred).first() #if something is returned, ingred is True, returns None if there isn't anything in the database
 
 		if ingred_check:
 			flash("This ingredient has already been searched for.")
-			
 			return redirect(url_for('home'))
 
 	## Get the data from the form
@@ -149,8 +151,10 @@ def recipe_results():
 			db.session.commit()
 
 			recipes = get_or_create_recipes(ingred=db_ingred)
-	
-		return render_template('recipe_results.html',ingred=ingred,recipes=recipes, form=form)			
+			if not recipes:
+				flash("There are no recipes for this ingredient. Search another one.")
+	flash(form.errors)			
+	return render_template('recipe_results.html',ingred=ingred,recipes=recipes, form=form)			
 
 @app.route('/all_recipes')
 def all_recipes():
@@ -165,6 +169,18 @@ def all_ingred():
 
 	ingred = Ingredient.query.all()
 	return render_template('all_ingred.html', ingred=ingred, form=form)
+
+@app.route('/health', methods = ["GET"])
+def health():
+	form = HealthForm(request.args) 
+	health_results = None
+	health_label = None
+	if form.validate():
+		health_label = form.health.data
+		health_results = Recipe.query.filter_by(health=health_label).all()
+		if not health_results:
+			flash ("Nothing found - keep searching for ingredients and then try again.")
+	return render_template('healthform.html', health_label=health_label, health_results=health_results, form=form)
 
 ## Code to run the application...
 

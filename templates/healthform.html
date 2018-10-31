@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block content1 %}
+
+<form method="GET">
+	{{ form.hidden_tag() }}
+
+	{% for message in get_flashed_messages() %}
+  	{{ message }}
+  	{% endfor %} <br/>
+
+	{{ form.health.label() }}{{ form.health() }}<br>
+	{{ form.submit() }}
+</form>
+
+{% if health_results %}
+
+<h1>Recipe Results For: {{ health_label }}</h1>
+	<p>
+	
+		{% for r in health_results %}
+			{{ r.title }} <br/>
+	{% endfor %}
+	
+	</p>
+	{% endif %}
+
+{% endblock %}
